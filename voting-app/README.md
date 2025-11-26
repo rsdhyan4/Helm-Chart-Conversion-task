@@ -308,12 +308,14 @@ kubectl get all -n dev
 **Access Dev Environment**:
 
 ```bash
-# Using port-forward (recommended for local)
+# Using port-forward (for local access)
 kubectl port-forward -n dev svc/voting-app-dev-vote 8080:8080 &
 kubectl port-forward -n dev svc/voting-app-dev-result 8081:8081 &
 
 # Access at http://localhost:8080 and http://localhost:8081
 ```
+
+**Note**: For production clusters, use LoadBalancer or Ingress instead of port-forward.
 
 ### Staging Environment
 
@@ -359,11 +361,15 @@ kubectl get pvc -n staging  # Should show persistent volumes
 **Access Staging Environment**:
 
 ```bash
-# Get NodePort (if using NodePort)
-MINIKUBE_IP=$(minikube ip)
-VOTE_PORT=$(kubectl get svc voting-app-staging-vote -n staging -o jsonpath='{.spec.ports[0].nodePort}')
-echo "Staging Vote: http://${MINIKUBE_IP}:${VOTE_PORT}"
+# Using port-forward (for local access)
+kubectl port-forward -n staging svc/voting-app-staging-vote 8080:8080 &
+kubectl port-forward -n staging svc/voting-app-staging-result 8081:8081 &
+
+# Or get service details for LoadBalancer/Ingress
+kubectl get svc -n staging
 ```
+
+**Note**: For production clusters, configure LoadBalancer or Ingress for external access.
 
 ### Production Environment
 
@@ -412,12 +418,20 @@ kubectl describe pod -l app=vote -n production | grep -A 5 "Limits\|Requests"
 **Access Production Environment**:
 
 ```bash
-# Using LoadBalancer or Ingress (production setup)
-# Or NodePort for testing
-MINIKUBE_IP=$(minikube ip)
-VOTE_PORT=$(kubectl get svc voting-app-prod-vote -n production -o jsonpath='{.spec.ports[0].nodePort}')
-echo "Production Vote: http://${MINIKUBE_IP}:${VOTE_PORT}"
+# Get service details
+kubectl get svc -n production
+
+# For LoadBalancer services, get external IP
+kubectl get svc voting-app-prod-vote -n production -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+
+# For Ingress, get ingress hostname
+kubectl get ingress -n production
+
+# Using port-forward (for testing only, not recommended for production)
+kubectl port-forward -n production svc/voting-app-prod-vote 8080:8080
 ```
+
+**Note**: Production should use LoadBalancer or Ingress for proper external access, not port-forward or NodePort.
 
 ## Environment Differences
 
@@ -460,17 +474,38 @@ echo "Production Vote: http://${MINIKUBE_IP}:${VOTE_PORT}"
 
 ### Upgrade a Release
 
+Upgrades should be performed within the same environment and namespace. Here are common upgrade scenarios:
+
 ```bash
-# Upgrade with new values
+# Upgrade dev environment with new chart version
 helm upgrade voting-app-dev ./voting-app \
   --namespace dev \
   --set environment=dev
 
-# Upgrade to different environment
+# Upgrade with custom values (e.g., increase replicas)
 helm upgrade voting-app-dev ./voting-app \
   --namespace dev \
+  --set environment=dev \
+  --set vote.replicas=2
+
+# Upgrade with values file
+helm upgrade voting-app-dev ./voting-app \
+  --namespace dev \
+  --set environment=dev \
+  -f custom-dev-values.yaml
+
+# Upgrade staging environment
+helm upgrade voting-app-staging ./voting-app \
+  --namespace staging \
   --set environment=staging
+
+# Upgrade production environment
+helm upgrade voting-app-prod ./voting-app \
+  --namespace production \
+  --set environment=prod
 ```
+
+**Note**: Each environment should remain in its own namespace. To deploy to a different environment, create a new release in the appropriate namespace rather than upgrading an existing one.
 
 ### View Release History
 
@@ -500,7 +535,7 @@ kubectl delete namespace dev
 
 ## Accessing the Application
 
-### Using Port-Forward (Recommended for Local)
+### Using Port-Forward (For Local Testing)
 
 ```bash
 # Vote service
@@ -512,25 +547,39 @@ kubectl port-forward -n <namespace> svc/voting-app-<env>-result 8081:8081
 # Access at http://localhost:8080 and http://localhost:8081
 ```
 
-### Using NodePort (Minikube)
+### Using LoadBalancer (Production)
+
+If services are configured with `type: LoadBalancer`:
 
 ```bash
-# Get minikube IP
-MINIKUBE_IP=$(minikube ip)
+# Get external IP
+kubectl get svc voting-app-<env>-vote -n <namespace>
 
-# Get NodePorts
+# Access using the EXTERNAL-IP shown in the output
+```
+
+### Using Ingress (Recommended for Production)
+
+If Ingress is configured:
+
+```bash
+# Get ingress hostname
+kubectl get ingress -n <namespace>
+
+# Access using the hostname from ingress rules
+```
+
+### Using NodePort (If Configured)
+
+```bash
+# Get NodePort
 VOTE_PORT=$(kubectl get svc voting-app-<env>-vote -n <namespace> -o jsonpath='{.spec.ports[0].nodePort}')
-RESULT_PORT=$(kubectl get svc voting-app-<env>-result -n <namespace> -o jsonpath='{.spec.ports[0].nodePort}')
 
-# Access at http://${MINIKUBE_IP}:${VOTE_PORT}
+# Access using any node IP and the NodePort
+# Note: Get node IPs with: kubectl get nodes -o wide
 ```
 
-### Using Minikube Service
-
-```bash
-minikube service voting-app-<env>-vote -n <namespace>
-minikube service voting-app-<env>-result -n <namespace>
-```
+**Note**: The default service type is `NodePort`. For production, consider using `LoadBalancer` or `Ingress` for better access control and routing.
 
 ## Troubleshooting
 
