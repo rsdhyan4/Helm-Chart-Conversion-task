@@ -27,10 +27,10 @@ vote:
   
   replicas: 1
   service:
-    type: NodePort
+    type: ClusterIP
     port: 8080
     targetPort: 80
-    nodePort: 31000
+    nodePort: null
   
   resources:
     limits:
@@ -62,10 +62,10 @@ result:
   
   replicas: 1
   service:
-    type: NodePort
+    type: ClusterIP
     port: 8081
     targetPort: 80
-    nodePort: 31001
+    nodePort: null
   
   resources:
     limits:
