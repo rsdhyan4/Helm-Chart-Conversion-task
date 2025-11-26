@@ -1,0 +1,58 @@
+{{- if .Values.redis.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "voting-app.fullname" . }}-redis
+  labels:
+    {{- include "voting-app.componentLabels" (dict "component" "redis" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 4 }}
+spec:
+  {{- $env := .Values.environment | default "dev" }}
+  {{- $envValues := index .Values.environments $env }}
+  {{- $componentEnvValues := index $envValues "redis" }}
+  {{- $replicas := .Values.redis.replicas }}
+  {{- if $componentEnvValues.replicas }}
+  {{- $replicas = $componentEnvValues.replicas }}
+  {{- end }}
+  replicas: {{ $replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "voting-app.componentSelectorLabels" (dict "component" "redis" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "voting-app.componentSelectorLabels" (dict "component" "redis" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 8 }}
+    spec:
+      containers:
+      - name: redis
+        image: "{{ include "voting-app.imageRegistry" . }}{{ .Values.redis.image.repository }}{{- if .Values.redis.image.tag }}:{{ .Values.redis.image.tag }}{{- end }}"
+        imagePullPolicy: {{ include "voting-app.imagePullPolicy" (dict "componentValues" .Values.redis "Values" .Values) }}
+        ports:
+        - containerPort: {{ .Values.redis.service.targetPort | default 6379 }}
+          name: redis
+          protocol: TCP
+        {{- $resources := .Values.redis.resources }}
+        {{- if $componentEnvValues.resources }}
+        {{- $resources = $componentEnvValues.resources }}
+        {{- end }}
+        {{- if $resources }}
+        resources:
+          {{- toYaml $resources | nindent 10 }}
+        {{- end }}
+        volumeMounts:
+        - mountPath: /data
+          name: redis-data
+      volumes:
+      {{- $persistence := .Values.redis.persistence }}
+      {{- if $componentEnvValues.persistence }}
+      {{- $persistence = $componentEnvValues.persistence }}
+      {{- end }}
+      {{- if and $persistence.enabled (not $persistence.emptyDir) }}
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: {{ include "voting-app.fullname" . }}-redis-pvc
+      {{- else }}
+      - name: redis-data
+        emptyDir: {}
+      {{- end }}
+{{- end }}
+

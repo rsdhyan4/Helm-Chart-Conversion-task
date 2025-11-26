@@ -1,0 +1,18 @@
+# Helm
+.helm/
+
+# Temporary files
+*.tmp
+*.log
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.iml
+

@@ -1,0 +1,18 @@
+{{- if .Values.db.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "voting-app.serviceName" (dict "component" "db" "Values" .Values "Release" .Release "Chart" .Chart) }}
+  labels:
+    {{- include "voting-app.componentLabels" (dict "component" "db" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 4 }}
+spec:
+  type: {{ .Values.db.service.type }}
+  ports:
+  - port: {{ .Values.db.service.port }}
+    targetPort: {{ .Values.db.service.targetPort }}
+    protocol: TCP
+    name: db-service
+  selector:
+    {{- include "voting-app.componentSelectorLabels" (dict "component" "db" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 4 }}
+{{- end }}
+

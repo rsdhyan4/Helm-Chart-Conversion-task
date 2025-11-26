@@ -1,0 +1,38 @@
+{{- if .Values.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "voting-app.fullname" . }}-worker
+  labels:
+    {{- include "voting-app.componentLabels" (dict "component" "worker" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 4 }}
+spec:
+  {{- $env := .Values.environment | default "dev" }}
+  {{- $envValues := index .Values.environments $env }}
+  {{- $componentEnvValues := index $envValues "worker" }}
+  {{- $replicas := .Values.worker.replicas }}
+  {{- if $componentEnvValues.replicas }}
+  {{- $replicas = $componentEnvValues.replicas }}
+  {{- end }}
+  replicas: {{ $replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "voting-app.componentSelectorLabels" (dict "component" "worker" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "voting-app.componentSelectorLabels" (dict "component" "worker" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 8 }}
+    spec:
+      containers:
+      - name: worker
+        image: "{{ include "voting-app.imageRegistry" . }}{{ .Values.worker.image.repository }}{{- if .Values.worker.image.tag }}:{{ .Values.worker.image.tag }}{{- end }}"
+        imagePullPolicy: {{ include "voting-app.imagePullPolicy" (dict "componentValues" .Values.worker "Values" .Values) }}
+        {{- $resources := .Values.worker.resources }}
+        {{- if $componentEnvValues.resources }}
+        {{- $resources = $componentEnvValues.resources }}
+        {{- end }}
+        {{- if $resources }}
+        resources:
+          {{- toYaml $resources | nindent 10 }}
+        {{- end }}
+{{- end }}
+

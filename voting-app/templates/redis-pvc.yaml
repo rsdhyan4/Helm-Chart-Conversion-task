@@ -1,0 +1,29 @@
+{{- $env := .Values.environment | default "dev" }}
+{{- $envValues := index .Values.environments $env }}
+{{- $componentEnvValues := index $envValues "redis" }}
+{{- $persistence := .Values.redis.persistence }}
+{{- if $componentEnvValues.persistence }}
+{{- $persistence = $componentEnvValues.persistence }}
+{{- end }}
+{{- if and .Values.redis.enabled $persistence.enabled (not $persistence.emptyDir) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "voting-app.fullname" . }}-redis-pvc
+  labels:
+    {{- include "voting-app.componentLabels" (dict "component" "redis" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 4 }}
+spec:
+  accessModes:
+    - {{ $persistence.accessMode | default "ReadWriteOnce" }}
+  {{- if $persistence.storageClass }}
+  {{- if (eq "-" $persistence.storageClass) }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: {{ $persistence.storageClass }}
+  {{- end }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $persistence.size | default "1Gi" }}
+{{- end }}
+

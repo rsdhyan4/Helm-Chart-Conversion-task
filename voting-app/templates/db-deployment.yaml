@@ -1,0 +1,69 @@
+{{- if .Values.db.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "voting-app.fullname" . }}-db
+  labels:
+    {{- include "voting-app.componentLabels" (dict "component" "db" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 4 }}
+spec:
+  {{- $env := .Values.environment | default "dev" }}
+  {{- $envValues := index .Values.environments $env }}
+  {{- $componentEnvValues := index $envValues "db" }}
+  {{- $replicas := .Values.db.replicas }}
+  {{- if $componentEnvValues.replicas }}
+  {{- $replicas = $componentEnvValues.replicas }}
+  {{- end }}
+  replicas: {{ $replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "voting-app.componentSelectorLabels" (dict "component" "db" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "voting-app.componentSelectorLabels" (dict "component" "db" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 8 }}
+    spec:
+      containers:
+      - name: postgres
+        image: "{{ include "voting-app.imageRegistry" . }}{{ .Values.db.image.repository }}{{- if .Values.db.image.tag }}:{{ .Values.db.image.tag }}{{- end }}"
+        imagePullPolicy: {{ include "voting-app.imagePullPolicy" (dict "componentValues" .Values.db "Values" .Values) }}
+        ports:
+        - containerPort: {{ .Values.db.service.targetPort | default 5432 }}
+          name: postgres
+          protocol: TCP
+        {{- $envVars := .Values.db.env }}
+        {{- if $componentEnvValues.env }}
+        {{- $envVars = merge $envVars $componentEnvValues.env }}
+        {{- end }}
+        {{- if $envVars }}
+        env:
+        {{- range $key, $value := $envVars }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        {{- $resources := .Values.db.resources }}
+        {{- if $componentEnvValues.resources }}
+        {{- $resources = $componentEnvValues.resources }}
+        {{- end }}
+        {{- if $resources }}
+        resources:
+          {{- toYaml $resources | nindent 10 }}
+        {{- end }}
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: db-data
+      volumes:
+      {{- $persistence := .Values.db.persistence }}
+      {{- if $componentEnvValues.persistence }}
+      {{- $persistence = $componentEnvValues.persistence }}
+      {{- end }}
+      {{- if and $persistence.enabled (not $persistence.emptyDir) }}
+      - name: db-data
+        persistentVolumeClaim:
+          claimName: {{ include "voting-app.fullname" . }}-db-pvc
+      {{- else }}
+      - name: db-data
+        emptyDir: {}
+      {{- end }}
+{{- end }}
+

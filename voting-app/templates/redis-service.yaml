@@ -1,0 +1,18 @@
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "voting-app.serviceName" (dict "component" "redis" "Values" .Values "Release" .Release "Chart" .Chart) }}
+  labels:
+    {{- include "voting-app.componentLabels" (dict "component" "redis" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 4 }}
+spec:
+  type: {{ .Values.redis.service.type }}
+  ports:
+  - port: {{ .Values.redis.service.port }}
+    targetPort: {{ .Values.redis.service.targetPort }}
+    protocol: TCP
+    name: redis-service
+  selector:
+    {{- include "voting-app.componentSelectorLabels" (dict "component" "redis" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 4 }}
+{{- end }}
+

@@ -1,0 +1,65 @@
+{{- if .Values.vote.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "voting-app.fullname" . }}-vote
+  labels:
+    {{- include "voting-app.componentLabels" (dict "component" "vote" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 4 }}
+spec:
+  {{- $env := .Values.environment | default "dev" }}
+  {{- $envValues := index .Values.environments $env }}
+  {{- $componentEnvValues := index $envValues "vote" }}
+  {{- $replicas := .Values.vote.replicas }}
+  {{- if $componentEnvValues.replicas }}
+  {{- $replicas = $componentEnvValues.replicas }}
+  {{- end }}
+  replicas: {{ $replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "voting-app.componentSelectorLabels" (dict "component" "vote" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "voting-app.componentSelectorLabels" (dict "component" "vote" "Values" .Values "Release" .Release "Chart" .Chart) | nindent 8 }}
+    spec:
+      containers:
+      - name: vote
+        image: "{{ include "voting-app.imageRegistry" . }}{{ .Values.vote.image.repository }}{{- if .Values.vote.image.tag }}:{{ .Values.vote.image.tag }}{{- end }}"
+        imagePullPolicy: {{ include "voting-app.imagePullPolicy" (dict "componentValues" .Values.vote "Values" .Values) }}
+        ports:
+        - containerPort: {{ .Values.vote.service.targetPort | default 80 }}
+          name: vote
+          protocol: TCP
+        {{- $envVars := .Values.vote.env }}
+        {{- if $componentEnvValues.env }}
+        {{- $envVars = merge $envVars $componentEnvValues.env }}
+        {{- end }}
+        {{- if $envVars }}
+        env:
+        {{- range $key, $value := $envVars }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        {{- $resources := .Values.vote.resources }}
+        {{- if $componentEnvValues.resources }}
+        {{- $resources = $componentEnvValues.resources }}
+        {{- end }}
+        {{- if $resources }}
+        resources:
+          {{- toYaml $resources | nindent 10 }}
+        {{- end }}
+        livenessProbe:
+          httpGet:
+            path: /
+            port: {{ .Values.vote.service.targetPort | default 80 }}
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: {{ .Values.vote.service.targetPort | default 80 }}
+          initialDelaySeconds: 5
+          periodSeconds: 5
+{{- end }}
+
