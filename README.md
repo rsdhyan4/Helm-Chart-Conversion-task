@@ -40,7 +40,7 @@ helm-chart/
 - Helm 3.0+
 - kubectl configured
 
-### Installation
+### Quick Installation
 
 ```bash
 # Add this chart (if using as a repo)
@@ -75,12 +75,4 @@ The chart supports extensive configuration through `values.yaml`:
 |-----------|---------|
 | Kubernetes | >= 1.19 |
 | Helm | >= 3.0 |
-
-## 🤝 Contributing
-
-This chart was created as part of a Helm conversion task, converting static Kubernetes YAML files into a parameterized Helm chart.
-
-## 📄 License
-
-See the main project repository for license information.
 

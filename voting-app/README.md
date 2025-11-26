@@ -729,15 +729,3 @@ helm install voting-app-prod ./voting-app \
 - **Namespace Isolation**: Each environment should be deployed to separate namespaces for proper isolation.
 - **Resource Limits**: Always set appropriate resource limits to prevent resource exhaustion and ensure fair scheduling.
 
-## Contributing
-
-This chart was created as part of a Helm conversion task, demonstrating:
-- Conversion of static Kubernetes YAML to parameterized Helm templates
-- Implementation of Helm best practices
-- Environment-aware configuration
-- Comprehensive scalability options
-
-## License
-
-See the main project repository for license information.
-
