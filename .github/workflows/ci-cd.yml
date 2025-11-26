@@ -1,0 +1,287 @@
+# name: Helm Chart CI/CD
+
+# on:
+#   push:
+#     branches:
+#       - main
+#       - develop
+#     paths:
+#       - 'voting-app/**'
+#       - '.github/workflows/**'
+#   pull_request:
+#     branches:
+#       - main
+#       - develop
+#     paths:
+#       - 'voting-app/**'
+#   workflow_dispatch:
+#     inputs:
+#       environment:
+#         description: 'Environment to deploy to'
+#         required: true
+#         type: choice
+#         options:
+#           - dev
+#           - staging
+#           - production
+#       namespace:
+#         description: 'Kubernetes namespace'
+#         required: true
+#         default: 'default'
+#       release_name:
+#         description: 'Helm release name'
+#         required: true
+#         default: 'voting-app'
+
+# env:
+#   HELM_VERSION: '3.13.0'
+#   KUBERNETES_VERSION: '1.28.0'
+
+# jobs:
+#   lint-and-test:
+#     name: Lint and Test Chart
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Set up Helm
+#         uses: azure/setup-helm@v3
+#         with:
+#           version: ${{ env.HELM_VERSION }}
+
+#       - name: Lint Helm chart
+#         run: |
+#           helm lint ./voting-app
+#           echo "✅ Chart linting passed"
+
+#       - name: Validate chart structure
+#         run: |
+#           helm dependency update ./voting-app || true
+#           helm package ./voting-app
+#           echo "✅ Chart packaging successful"
+
+#       - name: Test chart rendering (dev)
+#         run: |
+#           helm template voting-app-test ./voting-app \
+#             --set environment=dev \
+#             --debug --dry-run > /dev/null
+#           echo "✅ Dev environment template rendering successful"
+
+#       - name: Test chart rendering (staging)
+#         run: |
+#           helm template voting-app-test ./voting-app \
+#             --set environment=staging \
+#             --debug --dry-run > /dev/null
+#           echo "✅ Staging environment template rendering successful"
+
+#       - name: Test chart rendering (production)
+#         run: |
+#           helm template voting-app-test ./voting-app \
+#             --set environment=prod \
+#             --debug --dry-run > /dev/null
+#           echo "✅ Production environment template rendering successful"
+
+#       - name: Validate Kubernetes manifests
+#         run: |
+#           helm template voting-app-test ./voting-app \
+#             --set environment=dev | \
+#           kubectl --dry-run=client -f - validate
+#           echo "✅ Kubernetes manifest validation passed"
+
+#   deploy-dev:
+#     name: Deploy to Dev
+#     runs-on: ubuntu-latest
+#     needs: lint-and-test
+#     if: |
+#       github.event_name == 'push' && 
+#       (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main') &&
+#       contains(github.event.head_commit.message, '[deploy-dev]')
+#     environment:
+#       name: dev
+#       url: ${{ steps.deploy.outputs.url }}
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Set up Helm
+#         uses: azure/setup-helm@v3
+#         with:
+#           version: ${{ env.HELM_VERSION }}
+
+#       - name: Configure kubectl
+#         uses: azure/setup-kubectl@v3
+#         with:
+#           version: ${{ env.KUBERNETES_VERSION }}
+
+#       - name: Set up Kubernetes context
+#         uses: azure/k8s-set-context@v3
+#         with:
+#           kubeconfig: ${{ secrets.KUBECONFIG_DEV }}
+
+#       - name: Create namespace if not exists
+#         run: |
+#           kubectl create namespace dev --dry-run=client -o yaml | kubectl apply -f -
+
+#       - name: Deploy to dev environment
+#         id: deploy
+#         run: |
+#           helm upgrade --install voting-app-dev ./voting-app \
+#             --namespace dev \
+#             --set environment=dev \
+#             --wait \
+#             --timeout 5m \
+#             --atomic
+#           echo "✅ Successfully deployed to dev environment"
+
+#       - name: Verify deployment
+#         run: |
+#           kubectl get all -n dev
+#           kubectl get pods -n dev
+#           echo "✅ Deployment verification complete"
+
+#   deploy-staging:
+#     name: Deploy to Staging
+#     runs-on: ubuntu-latest
+#     needs: lint-and-test
+#     if: |
+#       github.event_name == 'push' && 
+#       github.ref == 'refs/heads/main' &&
+#       contains(github.event.head_commit.message, '[deploy-staging]')
+#     environment:
+#       name: staging
+#       url: ${{ steps.deploy.outputs.url }}
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Set up Helm
+#         uses: azure/setup-helm@v3
+#         with:
+#           version: ${{ env.HELM_VERSION }}
+
+#       - name: Configure kubectl
+#         uses: azure/setup-kubectl@v3
+#         with:
+#           version: ${{ env.KUBERNETES_VERSION }}
+
+#       - name: Set up Kubernetes context
+#         uses: azure/k8s-set-context@v3
+#         with:
+#           kubeconfig: ${{ secrets.KUBECONFIG_STAGING }}
+
+#       - name: Create namespace if not exists
+#         run: |
+#           kubectl create namespace staging --dry-run=client -o yaml | kubectl apply -f -
+
+#       - name: Deploy to staging environment
+#         id: deploy
+#         run: |
+#           helm upgrade --install voting-app-staging ./voting-app \
+#             --namespace staging \
+#             --set environment=staging \
+#             --wait \
+#             --timeout 5m \
+#             --atomic
+#           echo "✅ Successfully deployed to staging environment"
+
+#       - name: Verify deployment
+#         run: |
+#           kubectl get all -n staging
+#           kubectl get pods -n staging
+#           kubectl get hpa -n staging
+#           echo "✅ Deployment verification complete"
+
+#   deploy-production:
+#     name: Deploy to Production
+#     runs-on: ubuntu-latest
+#     needs: lint-and-test
+#     if: |
+#       (github.event_name == 'push' && 
+#        github.ref == 'refs/heads/main' &&
+#        contains(github.event.head_commit.message, '[deploy-prod]')) ||
+#       (github.event_name == 'workflow_dispatch' &&
+#        github.event.inputs.environment == 'production')
+#     environment:
+#       name: production
+#       url: ${{ steps.deploy.outputs.url }}
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Set up Helm
+#         uses: azure/setup-helm@v3
+#         with:
+#           version: ${{ env.HELM_VERSION }}
+
+#       - name: Configure kubectl
+#         uses: azure/setup-kubectl@v3
+#         with:
+#           version: ${{ env.KUBERNETES_VERSION }}
+
+#       - name: Set up Kubernetes context
+#         uses: azure/k8s-set-context@v3
+#         with:
+#           kubeconfig: ${{ secrets.KUBECONFIG_PROD }}
+
+#       - name: Create namespace if not exists
+#         run: |
+#           kubectl create namespace production --dry-run=client -o yaml | kubectl apply -f -
+
+#       - name: Deploy to production environment
+#         id: deploy
+#         run: |
+#           helm upgrade --install voting-app-prod ./voting-app \
+#             --namespace production \
+#             --set environment=prod \
+#             --wait \
+#             --timeout 10m \
+#             --atomic
+#           echo "✅ Successfully deployed to production environment"
+
+#       - name: Verify deployment
+#         run: |
+#           kubectl get all -n production
+#           kubectl get pods -n production
+#           kubectl get hpa -n production
+#           echo "✅ Deployment verification complete"
+
+#       - name: Run smoke tests
+#         run: |
+#           # Add your smoke tests here
+#           echo "Running smoke tests..."
+#           # Example: kubectl run test --image=curlimages/curl --rm -it --restart=Never -- curl http://voting-app-prod-vote.production.svc.cluster.local
+
+#   manual-deploy:
+#     name: Manual Deployment
+#     runs-on: ubuntu-latest
+#     if: github.event_name == 'workflow_dispatch'
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Set up Helm
+#         uses: azure/setup-helm@v3
+#         with:
+#           version: ${{ env.HELM_VERSION }}
+
+#       - name: Configure kubectl
+#         uses: azure/setup-kubectl@v3
+#         with:
+#           version: ${{ env.KUBERNETES_VERSION }}
+
+#       - name: Set up Kubernetes context
+#         uses: azure/k8s-set-context@v3
+#         with:
+#           kubeconfig: ${{ secrets.KUBECONFIG_DEV }}
+
+#       - name: Deploy manually
+#         run: |
+#           helm upgrade --install ${{ github.event.inputs.release_name }} ./voting-app \
+#             --namespace ${{ github.event.inputs.namespace }} \
+#             --set environment=${{ github.event.inputs.environment }} \
+#             --wait \
+#             --timeout 5m \
+#             --atomic
+#           echo "✅ Manual deployment successful"
+
